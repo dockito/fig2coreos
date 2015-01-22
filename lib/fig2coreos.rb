@@ -43,12 +43,8 @@ class Fig2CoreOS
         "--link #{@app_name}-#{container_name}_1:#{container_alias}"
       end
 
-      envs_directives = (service["environment"] || []).map do |env_name, env_value|
-        "Environment=\"#{env_name}=#{env_value}\""
-      end
-
       envs_run_parameters = (service["environment"] || []).map do |env_name, env_value|
-        "-e #{env_name}"
+        "-e #{env_name}=\"#{env_value}\""
       end
 
       after = if service["links"]
@@ -65,28 +61,12 @@ class Fig2CoreOS
         base_path = @output_dir
       end
 
-      File.open(File.join(base_path, "#{service_name}.1.service") , "w") do |file|
+      File.open(File.join(base_path, "#{service_name}.1.sh") , "w") do |file|
         file << <<-eof
-[Unit]
-Description=Run #{service_name}_1
-After=#{after}.service
-Requires=#{after}.service
-
-[Service]
-TimeoutStartSec=0
-User=core
-Restart=always
-RestartSec=10s
-#{envs_directives.join("\n")}
-ExecStartPre=-/usr/bin/docker kill #{service_name}_1
-ExecStartPre=-/usr/bin/docker rm #{service_name}_1
-ExecStartPre=/usr/bin/docker pull #{image}
-ExecStart=/usr/bin/docker run #{privileged && "--privileged=true"} --rm --name #{service_name}_1 #{volumes.join(" ")} #{links.join(" ")} #{envs_run_parameters.join(" ")} #{ports.join(" ")} #{image} #{command}
-ExecStop=/usr/bin/docker kill #{service_name}_1
-ExecStopPost=/usr/bin/docker rm #{service_name}_1
-
-[Install]
-WantedBy=multi-user.target
+#!/bin/bash
+/usr/bin/docker pull #{image}
+/usr/bin/docker rm -f #{service_name}_1
+/usr/bin/docker run #{privileged && "--privileged=true"} --restart=always -d --name #{service_name}_1 #{volumes.join(" ")} #{links.join(" ")} #{envs_run_parameters.join(" ")} #{ports.join(" ")} #{image} #{command}
 eof
       end
 
